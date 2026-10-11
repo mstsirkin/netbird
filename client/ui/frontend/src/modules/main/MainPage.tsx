@@ -3,6 +3,7 @@ import { MainExitNodeSwitcher } from "@/modules/main/MainExitNodeSwitcher.tsx";
 import { MainHeader } from "@/modules/main/MainHeader.tsx";
 import { AppRightPanel } from "@/layouts/AppRightPanel.tsx";
 import { Navigation } from "@/modules/main/advanced/Navigation.tsx";
+import { Window } from "@wailsio/runtime";
 import { cn } from "@/lib/cn";
 import { NavSectionProvider, useNavSection } from "@/contexts/NavSectionContext";
 import { ViewModeProvider, useViewMode } from "@/contexts/ViewModeContext";
@@ -15,9 +16,29 @@ import { NetworksProvider } from "@/contexts/NetworksContext";
 import { PeerDetailProvider, usePeerDetail } from "@/contexts/PeerDetailContext";
 import { useRestrictions } from "@/contexts/RestrictionsContext";
 import { PeerDetailPanel } from "@/modules/main/advanced/peers/PeerDetailPanel";
-import { isWindows } from "@/lib/platform.ts";
+import { isLinux, isWindows } from "@/lib/platform.ts";
 
 export const MainPage = () => {
+    // On Linux, WebKitGTK applies its own DPR from Xft.dpi while GTK's
+    // window size stays in unscaled pixels, shrinking the CSS viewport.
+    // Scale the window up so the layout gets the intended pixel budget.
+    // Only scale when the GTK frame matches a Go-defined default width;
+    // if the window manager restored an already-scaled or user-resized
+    // size, skip to avoid double-scaling.
+    useEffect(() => {
+        if (!isLinux()) return;
+        const dpr = window.devicePixelRatio;
+        if (dpr <= 1) return;
+        Window.Size()
+            .then((frame) => {
+                if (frame.width !== 380 && frame.width !== 900) return;
+                const w = Math.round(frame.width * dpr);
+                const h = Math.round(frame.height * dpr);
+                return Window.SetSize(w, h);
+            })
+            .catch(() => {});
+    }, []);
+
     return (
         <ViewModeProvider>
             <MainHeader />
